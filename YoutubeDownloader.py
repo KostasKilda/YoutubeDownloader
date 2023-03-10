@@ -7,9 +7,13 @@ import urllib.request
 from PIL import ImageTk, Image
 import io
 import time
+import re
 
 
 defaultImgUrl = 'https://mir-s3-cdn-cf.behance.net/projects/404/305eeb62042495.Y3JvcCwxMzg0LDEwODMsMjcwLDA.jpg'
+youtubePlaylistImg = 'https://static.wikia.nocookie.net/youtube/images/8/8e/Youtubeplaylist.png/revision/latest?cb=20150311191950'
+
+
 # downloadPath = str(Path.home() / "Downloads")
 # print(downloadPath)
 
@@ -30,22 +34,38 @@ root = Tk()
 # Method that attempts to check the link again after a failed attempt
 # This was made due to Pytube's high failure chance, around 5%-10%
 def tryLink(i, link):
-    if i < 10:
+    if i < 3:
         try:
             return YouTube(link)
         except:
             return tryLink(i+1, link)
         
 def retrieveInformation(i, youtubeLink):
-    if i < 4:
+    if i < 3:
         try:
             changeImage(youtubeLink.thumbnail_url)
             changeVideoTitle(youtubeLink.title)
         except:
             # Calls the original method to redetermine if the link is valid
             # Solves an error of youtube link property not having a title element
-            viewSource(i)
-        
+            viewSource(i+1)
+    else:
+        changeImage(defaultImgUrl)
+        changeVideoTitle('None')
+
+def changePlaylistTitle(playlistUrl):
+    # Send a GET request to the playlist URL and read the HTML content
+    with urllib.request.urlopen(playlistUrl) as response:
+        html_content = response.read().decode()
+
+    # Use regular expressions to extract the playlist title and thumbnail URL from the HTML content
+    title_match = re.search('<title>(.*?) - YouTube</title>', html_content)
+    thumbnail_match = re.search('"thumbnailUrl":"(.*?)",', html_content)
+
+    # Retrieve the playlist title and thumbnail URL from the regular expression matches
+    playlist_title = title_match.group(1)
+
+    changeVideoTitle(playlist_title)
 
 # Check the source of the link
 # Determines if it's a playlist, stream, video or invalid link
@@ -54,8 +74,10 @@ def viewSource(i):
     if(url.get().find('playlist?')!=-1):
         playlist = Playlist(url.get())
         if(len(playlist)!=0):
-            for video in playlist:
-                print(tryLink(0, video))
+            changeImage(youtubePlaylistImg)
+            changePlaylistTitle(url.get())
+            # for video in playlist:
+                # print(tryLink(0, video))
         else:
             changeImage(defaultImgUrl)
             changeVideoTitle('None')
@@ -92,8 +114,12 @@ def changeImage(imageUrl):
 # Method that will change video title
 def changeVideoTitle(videoTitle):
     if(len(videoTitle)>28):
-        videoTitle = videoTitle[:26] + '...'
-    videoName.configure(text="Video name: %s" % videoTitle)
+        if(len(videoTitle)>=62):
+            videoName.configure(text="Video name: %s\n %s..." % (videoTitle[:26],videoTitle[26:61]))
+        else:
+            videoName.configure(text="Video name: %s\n%s" % (videoTitle[:26], videoTitle[26:]))
+    else:
+        videoName.configure(text="Video name: %s" % videoTitle)
 
 # Setting the window size and open location to the middle of the screen
 root.geometry('450x300+%d+%d' % ( root.winfo_screenwidth()/2.6,root.winfo_screenheight()/3.6))
@@ -113,7 +139,7 @@ placeHolderImg = Label(root)
 # Setting grid layout for things
 url.grid(column=0, row=1)
 placeHolderImg.grid(column=0, row=3, sticky='w', padx=20, pady=20)
-videoName.grid(column=0, row=3,sticky='w', padx=(170,0), pady=(16,140), columnspan=2)
+videoName.grid(column=0, row=3,sticky='w', padx=(170,0), pady=(30,140), columnspan=2)
 
 # load the default image
 changeImage(defaultImgUrl)
@@ -121,26 +147,3 @@ changeImage(defaultImgUrl)
 
 root.pack_slaves()
 root.mainloop()
-
-
-
-
-
-
-
-
-
-
-
-
-# youtube = 'https://mir-s3-cdn-cf.behance.net/projects/404/305eeb62042495.Y3JvcCwxMzg0LDEwODMsMjcwLDA.jpg'
-# # youtube = YouTube('https://www.youtube.com/watch?v=lSsvzBV0tyI')
-
-# thumbnail_url = youtube.thumbnail_url
-# with urllib.request.urlopen(thumbnail_url) as url_image:
-#     image_bytes = url_image.read()
-#     image = Image.open(io.BytesIO(image_bytes))
-
-# image = image.resize((160, 160))
-# photo_image = ImageTk.PhotoImage(image)
-# label = Label(root, image=photo_image)
