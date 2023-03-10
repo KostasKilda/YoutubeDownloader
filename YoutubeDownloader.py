@@ -60,7 +60,6 @@ def changePlaylistTitle(playlistUrl):
 
     # Use regular expressions to extract the playlist title and thumbnail URL from the HTML content
     title_match = re.search('<title>(.*?) - YouTube</title>', html_content)
-    thumbnail_match = re.search('"thumbnailUrl":"(.*?)",', html_content)
 
     # Retrieve the playlist title and thumbnail URL from the regular expression matches
     playlist_title = title_match.group(1)
@@ -74,8 +73,11 @@ def viewSource(i):
     if(url.get().find('playlist?')!=-1):
         playlist = Playlist(url.get())
         if(len(playlist)!=0):
-            changeImage(youtubePlaylistImg)
-            changePlaylistTitle(url.get())
+            changePlaylistTitle(url.get())   
+            try:
+                changeImage(YouTube(playlist[0]).thumbnail_url)
+            except:
+                changeImage(youtubePlaylistImg)
             # for video in playlist:
                 # print(tryLink(0, video))
         else:
@@ -110,14 +112,26 @@ def changeImage(imageUrl):
     photo_image = ImageTk.PhotoImage(image)
     placeHolderImg.configure(image=photo_image)
     placeHolderImg.image = photo_image
+
+def findTitleNewLine(title):
+    matches = [m.start() for m in re.finditer(' ', title)]
+    if matches != [] and matches[0]<24:
+        i = len(matches)-1
+        while i!=0:
+            if(matches[i]<=24):
+                return matches[i]
+            i-=1
+    else:
+        return 24
         
 # Method that will change video title
 def changeVideoTitle(videoTitle):
     if(len(videoTitle)>28):
+        breakPoint = findTitleNewLine(videoTitle)
         if(len(videoTitle)>=62):
-            videoName.configure(text="Video name: %s\n %s..." % (videoTitle[:26],videoTitle[26:61]))
+            videoName.configure(text="Video name: %s\n %s..." % (videoTitle[:breakPoint],videoTitle[breakPoint:61]))
         else:
-            videoName.configure(text="Video name: %s\n%s" % (videoTitle[:26], videoTitle[26:]))
+            videoName.configure(text="Video name: %s\n%s" % (videoTitle[:breakPoint], videoTitle[breakPoint:]))
     else:
         videoName.configure(text="Video name: %s" % videoTitle)
 
@@ -129,7 +143,7 @@ root.grid()
 ttk.Label(root, text="Enter a link to a youtube video, stream or playlist", font=('Arial', 14), padding=(20)).grid(column=0, row=0, columnspan=2)
 url = Entry(root ,width='46')
 ttk.Button(root, text="Search", command=sendInfo).grid(column=1, row=1)
-videoName = Label(root, text="Video name: None", font=('Arial', 10))
+videoName = Label(root, text="Video name: None", font=('Arial', 10), anchor='w', justify='left')
 
 
 # Setting the label for later image use
