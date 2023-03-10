@@ -6,6 +6,7 @@ from tkinter import ttk
 import urllib.request
 from PIL import ImageTk, Image
 import io
+import time
 
 
 defaultImgUrl = 'https://mir-s3-cdn-cf.behance.net/projects/404/305eeb62042495.Y3JvcCwxMzg0LDEwODMsMjcwLDA.jpg'
@@ -14,12 +15,14 @@ defaultImgUrl = 'https://mir-s3-cdn-cf.behance.net/projects/404/305eeb62042495.Y
 
 # Video
 # url = 'https://www.youtube.com/watch?v=lSsvzBV0tyI'
+# https://www.youtube.com/watch?v=lSsvzBV0tyI
 
 # Playlist
 # url = 'https://www.youtube.com/playlist?list=PLeNVp42ZDPZpqNq06kF9qZQYadQ-Ji1nt'
 
 # Stream
 # url = 'https://www.youtube.com/watch?v=jfKfPfyJRdk'
+# https://www.youtube.com/watch?v=jfKfPfyJRdk
 
 
 root = Tk()
@@ -29,14 +32,24 @@ root = Tk()
 def tryLink(i, link):
     if i < 10:
         try:
-            return YouTube(link).title
+            return YouTube(link)
         except:
             return tryLink(i+1, link)
+        
+def retrieveInformation(i, youtubeLink):
+    if i < 4:
+        try:
+            changeImage(youtubeLink.thumbnail_url)
+            changeVideoTitle(youtubeLink.title)
+        except:
+            # Calls the original method to redetermine if the link is valid
+            # Solves an error of youtube link property not having a title element
+            viewSource(i)
         
 
 # Check the source of the link
 # Determines if it's a playlist, stream, video or invalid link
-def viewSource():
+def viewSource(i):
     # Checking if the link is playlist
     if(url.get().find('playlist?')!=-1):
         playlist = Playlist(url.get())
@@ -44,24 +57,26 @@ def viewSource():
             for video in playlist:
                 print(tryLink(0, video))
         else:
-            print('The youtube link is not valid')
+            changeImage(defaultImgUrl)
+            changeVideoTitle('None')
     else:
         # Checking if the link is valid and leads to a video
         youtubeLink = tryLink(0, url.get())
         if(youtubeLink!=None):
-            changeImage(YouTube(url.get()).thumbnail_url)
-            print(youtubeLink)
+            retrieveInformation(i, youtubeLink)
         else:
-            print('The youtube link is not valid')
+            changeImage(defaultImgUrl)
+            changeVideoTitle('None')
 
 
 # Method that acts as a trigger event for "Search" button
 def sendInfo():
     # Checking if the link is valid
     if(len(url.get())>5 and (url.get().lower().find('yout')!=-1)):
-        viewSource()
+        viewSource(0)
     else:
-        print('The youtube link is not valid')
+        changeImage(defaultImgUrl)
+        changeVideoTitle('None')
 
 
 # Method that is called to change the placeholder or current image
@@ -69,20 +84,16 @@ def changeImage(imageUrl):
     with urllib.request.urlopen(imageUrl) as url_image:
         image_bytes = url_image.read()
         image = Image.open(io.BytesIO(image_bytes))
-    image = image.resize((180, 160))
+    image = image.resize((140, 140))
     photo_image = ImageTk.PhotoImage(image)
-    label.configure(image=photo_image)
-    label.image = photo_image
+    placeHolderImg.configure(image=photo_image)
+    placeHolderImg.image = photo_image
         
-
-# Method that is called when starting the application, that loads the default image as a placeholder.
-def loadDefaultImage(imageUrl):
-    with urllib.request.urlopen(imageUrl) as url_image:
-        image_bytes = url_image.read()
-        return(Image.open(io.BytesIO(image_bytes)))
-    
-
-
+# Method that will change video title
+def changeVideoTitle(videoTitle):
+    if(len(videoTitle)>28):
+        videoTitle = videoTitle[:26] + '...'
+    videoName.configure(text="Video name: %s" % videoTitle)
 
 # Setting the window size and open location to the middle of the screen
 root.geometry('450x300+%d+%d' % ( root.winfo_screenwidth()/2.6,root.winfo_screenheight()/3.6))
@@ -92,15 +103,17 @@ root.grid()
 ttk.Label(root, text="Enter a link to a youtube video, stream or playlist", font=('Arial', 14), padding=(20)).grid(column=0, row=0, columnspan=2)
 url = Entry(root ,width='46')
 ttk.Button(root, text="Search", command=sendInfo).grid(column=1, row=1)
+videoName = Label(root, text="Video name: None", font=('Arial', 10))
 
 
 # Setting the label for later image use
-label = Label(root)
+placeHolderImg = Label(root)
 
 
 # Setting grid layout for things
 url.grid(column=0, row=1)
-label.grid(column=0, row=3, sticky='w', padx=20, pady=20)
+placeHolderImg.grid(column=0, row=3, sticky='w', padx=20, pady=20)
+videoName.grid(column=0, row=3,sticky='w', padx=(170,0), pady=(16,140), columnspan=2)
 
 # load the default image
 changeImage(defaultImgUrl)
