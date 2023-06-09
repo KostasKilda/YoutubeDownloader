@@ -1,137 +1,72 @@
+import customtkinter
+import threading
 from pytube import YouTube 
 from pytube import Playlist
+import requests
 from pathlib import Path
-from tkinter import *
-from tkinter import ttk
-import urllib.request
 from PIL import ImageTk, Image
 import io
-import time
-import re
 import os
-import threading
 
+def processUrl():
 
-defaultImgUrl = 'https://mir-s3-cdn-cf.behance.net/projects/404/305eeb62042495.Y3JvcCwxMzg0LDEwODMsMjcwLDA.jpg'
-youtubePlaylistImg = 'https://static.wikia.nocookie.net/youtube/images/8/8e/Youtubeplaylist.png/revision/latest?cb=20150311191950'
+    url = entry.get()
 
+    # Brief URL validation
+    if(not (('youtu.be/' in url) or ('youtube.com/playlist' in url) or ('youtube.com/watch' in url))):
+        return
+    
+    # Acquiring the URL to a global variable for later use
+    global videoUrl
 
-# downloadPath = str(Path.home() / "Downloads")
-# print(downloadPath)
-
-# Video
-# url = 'https://www.youtube.com/watch?v=lSsvzBV0tyI'
-# https://www.youtube.com/watch?v=lSsvzBV0tyI
-
-# Playlist
-# url = 'https://www.youtube.com/playlist?list=PLeNVp42ZDPZpqNq06kF9qZQYadQ-Ji1nt'
-
-root = Tk()
-
-# Method that attempts to check the link again after a failed attempt
-# This was made due to Pytube's high failure chance, around 5%-10%
-def tryLink(i, link):
-    if i < 3:
-        try:
-            return YouTube(link)
-        except:
-            return tryLink(i+1, link)
+    if ('youtube.com/playlist' in url):
+        videoUrl = ['Playlist', url]
         
-def retrieveInformation(i, youtubeLink):
-    if i < 3:
-        try:
-            changeImage(youtubeLink.thumbnail_url)
-            changeVideoTitle(youtubeLink.title)
-        except:
-            # Calls the original method to redetermine if the link is valid
-            # Solves an error of youtube link property not having a title element
-            viewSource(i+1)
+        updateSearchVideo(Playlist(url)[0], 'Playlist: ' + Playlist(url).title)
+        # changeVideoTitle('Playlist: ' + Playlist(url).title)
+
     else:
-        changeImage(defaultImgUrl)
-        changeVideoTitle('None')
+        videoUrl = ['Video', url]
+        updateSearchVideo(url, YouTube(url).title)
+        # changeVideoTitle(YouTube(url).title)
+    
 
-def changePlaylistTitle(playlistUrl):
-    # Send a GET request to the playlist URL and read the HTML content
-    with urllib.request.urlopen(playlistUrl) as response:
-        html_content = response.read().decode()
+# Adding the thumbnail of the video, title and download button after the URL has been found
+def updateSearchVideo(url, title):
+    thumbnail_image = Image.open(io.BytesIO(requests.get(YouTube(url).thumbnail_url).content))
+    thumbnail_image.thumbnail((200, 140))
+    thumbnail_photo = ImageTk.PhotoImage(thumbnail_image)
+    image_label = customtkinter.CTkLabel(master=frame, image=thumbnail_photo, text='')
+    image_label.grid(row=2, column=0, pady=12, padx=10, sticky='W', rowspan=2 , columnspan=2)
 
-    # Use regular expressions to extract the playlist title and thumbnail URL from the HTML content
-    title_match = re.search('<title>(.*?) - YouTube</title>', html_content)
+    if(len(title)>100):
+        title = title[:99] + '...'
 
-    # Retrieve the playlist title and thumbnail URL from the regular expression matches
-    playlist_title = title_match.group(1)
+    videoTitle.configure(text=title)
 
-    changeVideoTitle(playlist_title)
-
-# Check the source of the link
-# Determines if it's a playlist, stream, video or invalid link
-def viewSource(i):
-    # Checking if the link is playlist
-    if(url.get().find('playlist?')!=-1):
-        playlist = Playlist(url.get())
-        if(len(playlist)!=0):
-            changePlaylistTitle(url.get())   
-            try:
-                changeImage(YouTube(playlist[0]).thumbnail_url)
-            except:
-                changeImage(youtubePlaylistImg)
-        else:
-            changeImage(defaultImgUrl)
-            changeVideoTitle('None')
-    else:
-        # Checking if the link is valid and leads to a video
-        youtubeLink = tryLink(0, url.get())
-        if(youtubeLink!=None):
-            retrieveInformation(i, youtubeLink)
-        else:
-            changeImage(defaultImgUrl)
-            changeVideoTitle('None')
+    downloadButton = customtkinter.CTkButton(master=frame, text='Download', width=100, command=createDownloadThread)
+    downloadButton.grid(row=3, column=2, pady=(12, 26), padx=12, sticky="S", columnspan=2)
 
 
-# Method that acts as a trigger event for "Search" button
-def sendInfo(option):
-    # Checking if the link is valid
-    if(len(url.get())>5 and (url.get().lower().find('yout')!=-1)):
-        if(option==1):
-            thread = threading.Thread(target=startDownload)
-            thread.start()
-        viewSource(0)
-    else:
-        changeImage(defaultImgUrl)
-        changeVideoTitle('None')
 
+def fetchDownloadUrl():
+    # Validating that videoUrl variable exists
+    try:
+        videoUrl[0]
+        videoUrl[1]
+    except:
+        return
+    
+    global downloadPath
+    downloadPath = createFolder()
 
-# Method that is called to change the placeholder or current image
-def changeImage(imageUrl):
-    with urllib.request.urlopen(imageUrl) as url_image:
-        image_bytes = url_image.read()
-        image = Image.open(io.BytesIO(image_bytes))
-    image = image.resize((140, 140))
-    photo_image = ImageTk.PhotoImage(image)
-    placeHolderImg.configure(image=photo_image)
-    placeHolderImg.image = photo_image
+    if(videoUrl[0] == 'Playlist'):
+        playlist = Playlist(videoUrl[1])
+        for url in playlist:
+            download(url, 0)
 
-def findTitleNewLine(title):
-    matches = [m.start() for m in re.finditer(' ', title)]
-    if matches != [] and matches[0]<18:
-        i = len(matches)-1
-        while i!=0:
-            if(matches[i]<=18):
-                return matches[i]+1
-            i-=1
-    else:
-        return 18
-        
-# Method that will change video title
-def changeVideoTitle(videoTitle):
-    if(len(videoTitle)>18):
-        breakPoint = findTitleNewLine(videoTitle)
-        if(len(videoTitle)>=62):
-            videoName.configure(text="Video name: %s\n %s..." % (videoTitle[:breakPoint],videoTitle[breakPoint:61]))
-        else:
-            videoName.configure(text="Video name: %s\n%s" % (videoTitle[:breakPoint], videoTitle[breakPoint:]))
-    else:
-        videoName.configure(text="Video name: %s" % videoTitle)
+    elif(videoUrl[0] == 'Video'):
+        download(videoUrl[1], 0)
 
 
 def createFolder():
@@ -141,75 +76,51 @@ def createFolder():
         os.mkdir(os.path.join(downloadPath, folderName))
     return os.path.join(downloadPath, folderName)
 
-def startDownload():
-    downloadPath = createFolder()
-    if(url.get().find('playlist?')!=-1):
-            playlistUrl = Playlist(url.get())
 
-            for video_url in playlistUrl.video_urls:
-                # download video
-                try:
-                    yt = YouTube(video_url)
-                    stream = yt.streams.get_highest_resolution()
-                    stream.download(output_path=downloadPath)
-                except: 
-                    try:
-                        yt = YouTube(video_url)
-                        stream = yt.streams.get_highest_resolution()
-                        stream.download(output_path=downloadPath)
-                    except: 
-                        try:
-                            yt = YouTube(video_url)
-                            stream = yt.streams.get_highest_resolution()
-                            stream.download(output_path=downloadPath)
-                        except:        
-                            print('Not a valid playlist')
-    else:
+def download(url, itteration):
+    if(itteration < 10):
+        print(itteration)
         try:
-            yt = YouTube(url.get())
-            stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
-            stream.download(output_path=downloadPath)
+            YouTube(url).streams.get_highest_resolution().download(output_path=downloadPath)
         except:
-            print('Not a valid video')
+            download(url, itteration+1)
+        return True
+
+def createDownloadThread():
+    thread = threading.Thread(target=fetchDownloadUrl, daemon=True)
+    thread.start()
+
+def createSearcgThread():
+    thread = threading.Thread(target=processUrl, daemon=True)
+    thread.start()
 
 
 
-def downLoad():
-    sendInfo(1)
 
-def search():
-    sendInfo(0)
+customtkinter.set_appearance_mode("dark")
+customtkinter.set_default_color_theme("green")
 
-# Setting the window size and open location to the middle of the screen
-root.geometry('380x380+%d+%d' % ( root.winfo_screenwidth()/2.6,root.winfo_screenheight()/3.6))
-root.grid()
+root = customtkinter.CTk()
+root.geometry("500x300")
+root.title("Youtube downloader")
 
-style = ttk.Style()
+frame = customtkinter.CTkFrame(master=root)
+frame.pack(pady=10, padx=10, fill='both', expand=True)
 
+label = customtkinter.CTkLabel(master=frame, text='Enter a youtube video/playlist link', font=("Roboto", 24, 'bold'))
+label.grid(row=0, column=0, pady=12, padx=10, columnspan=4, sticky='NSEW')
 
+entry = customtkinter.CTkEntry(master=frame, placeholder_text='Link', width=330)
+entry.grid(row=1, column=0, pady=12, padx=10, columnspan=3)
 
-ttk.Label(root, text="Enter a link to a youtube video or playlist", font=('Arial', 14), padding=(20), background='white').grid(column=0, row=0, columnspan=2)
-url = Entry(root ,width='46')
-ttk.Button(root, text="Search", command=search).grid(column=1, row=1)
-videoName = Label(root, text="Video name: None", font=('Arial', 10), anchor='w', justify='left')
+button = customtkinter.CTkButton(master=frame, text='Search', width=100, command=createSearcgThread)
+button.grid(row=1, column=3, pady=12, padx=10)
 
-style.theme_create('downloadstyle', parent='alt', settings={"Download.TButton": {"configure": {"foreground": "#ffffff", "background": "#4CAF50", "font": ('Arial', 10),
-        "padding": (8, 5), "borderwidth": 0, "bordercolor": "#4CAF50", "borderradius": "50%"}, "map": {"background": [("active", "#4CAF50"), ("pressed", "#4CAF50")]}}})
-style.theme_use('downloadstyle')
-ttk.Button(root, text="Download", command=downLoad, style='Download.TButton').grid(column=0, row=4, columnspan=2, sticky='s')
+videoTitle = customtkinter.CTkLabel(master=frame, text='', font=("Roboto", 16,), wraplength=240)
+videoTitle.grid(row=2, column=2, pady=(18,0), padx=(0,10), sticky='W', columnspan=2)
 
+placeholder_image = ImageTk.PhotoImage(Image.new(mode='RGB', size=(200, 140), color=(43,43,43)))
+image_label = customtkinter.CTkLabel(master=frame, image=placeholder_image, text='')
+image_label.grid(row=2, column=0, pady=12, padx=10, sticky='W', rowspan=2, columnspan=2)
 
-# Setting the label for later image use
-placeHolderImg = Label(root)
-
-
-# Setting grid layout for things
-url.grid(column=0, row=1)
-placeHolderImg.grid(column=0, row=3, sticky='w', padx=20, pady=20)
-videoName.grid(column=0, row=3,sticky='w', padx=(170,0), pady=(30,140), columnspan=2)
-
-# load the default image
-changeImage(defaultImgUrl)
-
-root.pack_slaves()
 root.mainloop()
