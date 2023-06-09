@@ -1,0 +1,4 @@
+customtkinter
+pytube
+requests
+Pillow
